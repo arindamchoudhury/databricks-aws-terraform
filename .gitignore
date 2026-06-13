@@ -1,0 +1,18 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Secrets — use .example files, never commit actuals
+terraform.tfvars
+backend.tfvars
+
+# Editor
+.idea/
+.vscode/
+*.swp
