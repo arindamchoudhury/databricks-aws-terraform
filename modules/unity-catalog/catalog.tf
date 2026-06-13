@@ -1,8 +1,27 @@
+# Step 2: storage credential (references IAM role from iam.tf)
+resource "databricks_storage_credential" "this" {
+  provider = databricks.workspace
+  name     = "${var.prefix}-catalog-storage"
+  aws_iam_role {
+    role_arn = aws_iam_role.catalog_storage.arn
+  }
+  depends_on = [aws_iam_role_policy.catalog_storage]
+}
+
+resource "databricks_external_location" "catalog" {
+  provider        = databricks.workspace
+  name            = "${var.prefix}-catalog-location"
+  url             = "s3://${aws_s3_bucket.catalog.id}"
+  credential_name = databricks_storage_credential.this.name
+  depends_on      = [aws_iam_role.catalog_storage_patched]
+}
+
 resource "databricks_catalog" "this" {
-  provider   = databricks.workspace
-  name       = var.catalog_name
-  comment    = "Main catalog for ${var.prefix}"
-  depends_on = [databricks_metastore_assignment.this]
+  provider     = databricks.workspace
+  name         = var.catalog_name
+  comment      = "Main catalog for ${var.prefix}"
+  storage_root = databricks_external_location.catalog.url
+  depends_on   = [databricks_metastore_assignment.this]
 }
 
 resource "databricks_schema" "bronze" {
