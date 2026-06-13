@@ -31,3 +31,9 @@ variable "availability_zones" {
   description = "AZs to use (must match or exceed number of subnets)"
   default     = ["us-east-1a", "us-east-1b"]
 }
+
+variable "enable_nat_gateway" {
+  type        = bool
+  description = "Create a NAT gateway for classic cluster outbound access. Set false for serverless-only workspaces."
+  default     = false
+}
