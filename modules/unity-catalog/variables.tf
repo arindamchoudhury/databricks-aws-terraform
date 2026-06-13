@@ -29,3 +29,15 @@ variable "catalog_name" {
   description = "Name of the Unity Catalog catalog to create"
   default     = "main"
 }
+
+variable "secrets" {
+  description = "Secret scopes and secrets to create in the workspace (from secrets.json)"
+  sensitive   = true
+  type = object({
+    scopes = list(object({
+      name    = string
+      secrets = list(object({ key = string, value = string }))
+    }))
+  })
+  default = { scopes = [] }
+}

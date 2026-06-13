@@ -31,3 +31,10 @@ resource "databricks_mws_workspaces" "this" {
   storage_configuration_id = databricks_mws_storage_configurations.this.storage_configuration_id
   network_id               = databricks_mws_networks.this.network_id
 }
+
+resource "databricks_mws_permission_assignment" "admin" {
+  provider     = databricks.mws
+  workspace_id = databricks_mws_workspaces.this.workspace_id
+  principal_id = databricks_group.this[var.workspace_admin_group].id
+  permissions  = ["ADMIN"]
+}

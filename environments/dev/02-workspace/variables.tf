@@ -33,3 +33,9 @@ variable "workspace_name" {
   type    = string
   default = ""
 }
+
+variable "workspace_admin_group" {
+  type        = string
+  default     = "admins"
+  description = "Group name to assign ADMIN on the workspace"
+}

@@ -22,4 +22,6 @@ module "workspace" {
   private_subnet_ids    = data.terraform_remote_state.networking.outputs.private_subnet_ids
   security_group_ids    = data.terraform_remote_state.networking.outputs.security_group_ids
   workspace_name        = var.workspace_name
+  workspace_admin_group = var.workspace_admin_group
+  iam                   = jsondecode(file("${path.module}/iam.json"))
 }

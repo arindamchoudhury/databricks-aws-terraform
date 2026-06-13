@@ -16,6 +16,7 @@ override.tf.json
 terraform.tfvars
 *.auto.tfvars
 backend.tfvars
+secrets.json
 
 # Temp / scratch
 temp

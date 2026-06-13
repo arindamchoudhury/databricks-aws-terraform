@@ -9,6 +9,7 @@ module "unity_catalog" {
   prefix       = var.prefix
   region       = var.region
   workspace_id = var.workspace_id
-  admin_user            = var.admin_user
-  catalog_name          = var.catalog_name
+  admin_user   = var.admin_user
+  catalog_name = var.catalog_name
+  secrets      = fileexists("${path.module}/secrets.json") ? jsondecode(file("${path.module}/secrets.json")) : { scopes = [] }
 }
