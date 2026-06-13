@@ -19,8 +19,15 @@ resource "databricks_metastore_data_access" "this" {
 }
 
 resource "databricks_metastore_assignment" "this" {
-  provider             = databricks.mws
-  metastore_id         = databricks_metastore.this.id
-  workspace_id         = var.workspace_id
-  default_catalog_name = var.catalog_name
+  provider     = databricks.mws
+  metastore_id = databricks_metastore.this.id
+  workspace_id = var.workspace_id
+}
+
+resource "databricks_default_namespace_setting" "this" {
+  provider = databricks.workspace
+  namespace {
+    value = var.catalog_name
+  }
+  depends_on = [databricks_metastore_assignment.this]
 }
