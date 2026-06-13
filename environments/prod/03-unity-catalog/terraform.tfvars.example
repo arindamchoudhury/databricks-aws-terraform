@@ -1,0 +1,9 @@
+region                = "us-east-1"
+prefix                = "dbx-prod"
+databricks_account_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+databricks_client_id  = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# databricks_client_secret — set via env: $env:TF_VAR_databricks_client_secret = "..."
+workspace_id          = ""   # from: terraform -chdir=../02-workspace output workspace_id
+workspace_url         = ""   # from: terraform -chdir=../02-workspace output workspace_url
+admin_user            = "your.email@example.com"
+catalog_name          = "main"
