@@ -8,9 +8,10 @@ variable "region" {
   description = "AWS region"
 }
 
-variable "databricks_account_id" {
+variable "metastore_name" {
   type        = string
-  description = "Databricks account UUID"
+  description = "Name of the existing metastore. Defaults to the Databricks auto-created pattern: metastore_aws_<region_underscored>"
+  default     = ""
 }
 
 variable "workspace_id" {

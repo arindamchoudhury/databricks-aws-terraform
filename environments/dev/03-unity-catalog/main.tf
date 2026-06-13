@@ -6,10 +6,9 @@ module "unity_catalog" {
     databricks.workspace = databricks.workspace
   }
 
-  prefix                = var.prefix
-  region                = var.region
-  databricks_account_id = var.databricks_account_id
-  workspace_id          = var.workspace_id
-  admin_user            = var.admin_user
-  catalog_name          = var.catalog_name
+  prefix       = var.prefix
+  region       = var.region
+  workspace_id = var.workspace_id
+  admin_user   = var.admin_user
+  catalog_name = var.catalog_name
 }
