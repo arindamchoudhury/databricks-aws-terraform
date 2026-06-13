@@ -1,2 +1,2 @@
 region = "eu-central-1"
-prefix = "arindam"   # bucket will be named <prefix>-databricks-tf-state-<random8hex>
+prefix = "dbx"   # bucket will be named <prefix>-databricks-tf-state-<random8hex>

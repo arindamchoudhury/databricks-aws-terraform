@@ -3,6 +3,10 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+*.tfplan.*
+*.backup
+crash.log
+crash.*.log
 override.tf
 override.tf.json
 *_override.tf
@@ -10,9 +14,15 @@ override.tf.json
 
 # Secrets — use .example files, never commit actuals
 terraform.tfvars
+*.auto.tfvars
 backend.tfvars
+
+# Temp / scratch
+temp
+temp/
 
 # Editor
 .idea/
 .vscode/
 *.swp
+.DS_Store
