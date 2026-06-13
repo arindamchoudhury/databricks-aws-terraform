@@ -6,6 +6,3 @@ output "catalog_name" {
   value = module.unity_catalog.catalog_name
 }
 
-output "metastore_bucket" {
-  value = module.unity_catalog.metastore_bucket
-}
