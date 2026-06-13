@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.76, < 7.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -12,8 +16,12 @@ provider "aws" {
   region = var.region
 }
 
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
 resource "aws_s3_bucket" "state" {
-  bucket        = var.state_bucket_name
+  bucket        = "${var.prefix}-databricks-tf-state-${random_id.suffix.hex}"
   force_destroy = false
 }
 
