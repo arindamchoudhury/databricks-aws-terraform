@@ -1,0 +1,3 @@
+region            = "us-east-1"
+state_bucket_name = "myorg-databricks-tf-state"   # must be globally unique
+prefix            = "dbx"
