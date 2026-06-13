@@ -17,29 +17,21 @@ module "vpc" {
 
   default_security_group_egress = [
     {
-      cidr_blocks      = "0.0.0.0/0"
-      from_port        = 0
-      to_port          = 0
-      protocol         = "-1"
-      description      = "Allow all outbound"
-      self             = null
-      ipv6_cidr_blocks = null
-      prefix_list_ids  = null
-      security_groups  = null
+      cidr_blocks = "0.0.0.0/0"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      description = "Allow all outbound"
     }
   ]
 
   default_security_group_ingress = [
     {
-      self             = true
-      from_port        = 0
-      to_port          = 0
-      protocol         = "-1"
-      description      = "Allow inbound from cluster nodes"
-      cidr_blocks      = null
-      ipv6_cidr_blocks = null
-      prefix_list_ids  = null
-      security_groups  = null
+      self        = true
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      description = "Allow inbound from cluster nodes"
     }
   ]
 
