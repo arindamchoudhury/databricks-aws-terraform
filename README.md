@@ -8,7 +8,8 @@ Four state layers, deployed in order:
 
 ```
 bootstrap  →  01-networking  →  02-workspace  →  03-unity-catalog
-(S3 bucket)   (VPC, subnets)   (IAM, S3, MWS)   (UC metastore, catalog, grants)
+(S3 bucket)   (VPC, subnets)   (IAM, S3, MWS,   (UC metastore, catalog,
+                                users, groups)    schemas, grants, secrets)
 ```
 
 Each layer (except bootstrap) stores its state in the S3 bucket created by bootstrap, using `use_lockfile = true` (Terraform 1.10+). No DynamoDB table required.
@@ -17,14 +18,20 @@ Each layer (except bootstrap) stores its state in the S3 bucket created by boots
 bootstrap/           — S3 state bucket (run once)
 modules/
   networking/        — VPC, subnets, optional NAT gateway, security group
-  workspace/         — Cross-account IAM role, root S3 bucket, MWS workspace
+  workspace/         — Cross-account IAM role, root S3 bucket, MWS workspace,
+                       account-level users/groups (from iam.json),
+                       workspace admin group assignment
   unity-catalog/     — Auto-provisioned metastore lookup, catalog storage credential,
-                       catalog with storage_root, bronze/silver/gold schemas and grants
+                       catalog with storage_root, bronze/silver/gold schemas and grants,
+                       secret scopes and secrets (from secrets.json)
 environments/
   dev/
     01-networking/
     02-workspace/
+      iam.json       — users and groups (committed; no secrets)
     03-unity-catalog/
+      secrets.json          — secret values (gitignored — never commit)
+      secrets.json.example  — template showing the expected structure
   prod/              — Same structure; prod CIDRs and workspace name differ
 ```
 
@@ -87,6 +94,19 @@ terraform apply
 
 ### 3. Workspace
 
+Edit `environments/dev/02-workspace/iam.json` with your Databricks account email before applying:
+
+```json
+{
+  "users": [
+    { "user_name": "your.email@example.com", "display_name": "Your Name" }
+  ],
+  "groups": [
+    { "name": "admins", "members": ["your.email@example.com"] }
+  ]
+}
+```
+
 ```powershell
 cd environments/dev/02-workspace
 cp backend.tfvars.example backend.tfvars
@@ -102,7 +122,26 @@ terraform output workspace_url   # note for step 4
 terraform output workspace_id    # note for step 4
 ```
 
+This creates the workspace and assigns the `admins` group as workspace ADMIN. Open the workspace URL — you should be able to log in immediately.
+
 ### 4. Unity Catalog
+
+Optionally create `environments/dev/03-unity-catalog/secrets.json` before applying (this file is gitignored):
+
+```json
+{
+  "scopes": [
+    {
+      "name": "dev",
+      "secrets": [
+        { "key": "my-api-key", "value": "actual-value-here" }
+      ]
+    }
+  ]
+}
+```
+
+If the file is absent or `"secrets": []`, the scope is created empty — add secrets later with another `terraform apply`.
 
 ```powershell
 cd environments/dev/03-unity-catalog
@@ -124,6 +163,12 @@ SHOW SCHEMAS IN main;      -- bronze, silver, gold
 SHOW GRANTS ON CATALOG main;
 ```
 
+Access a secret in a notebook:
+
+```python
+api_key = dbutils.secrets.get(scope="dev", key="my-api-key")
+```
+
 ## Destroy (reverse order)
 
 ```powershell
@@ -142,11 +187,15 @@ terraform -chdir=environments/dev/01-networking destroy
 
 **Random bucket suffix** — bootstrap uses `random_id` (4 bytes = 8 hex chars) so the bucket name is globally unique without manual naming.
 
+**IAM from JSON** — users, groups, and group membership are declared in `iam.json` (committed to git — no secrets). `databricks_mws_permission_assignment` assigns the `admins` group as workspace ADMIN, not an individual user. Adding a new admin is a JSON edit; no HCL change required.
+
 **Auto-provisioned metastore** — Databricks accounts created after Nov 2023 get one metastore per region automatically. The UC module looks it up via `data "databricks_metastores"` and assigns it to the workspace — it does not create one.
 
 **Catalog-level storage** — the auto-provisioned metastore uses Databricks-managed S3 storage you cannot reference as `storage_root`. Instead, the module creates its own S3 bucket and wires it to the catalog via a `databricks_storage_credential` and `databricks_external_location`.
 
 **Credential-before-role pattern** — `databricks_storage_credential` is created with a hardcoded role ARN string (not a Terraform resource reference). This breaks the circular dependency: the storage credential needs the IAM role ARN; the IAM role's trust policy needs the `external_id` from the storage credential. The `databricks_aws_unity_catalog_assume_role_policy` data source reads the real `external_id` after credential creation and generates the correct trust policy (including the required self-assume statement) for the IAM role — all in a single `apply` pass.
+
+**Secrets from JSON (gitignored)** — `databricks_secret_scope` and `databricks_secret` are driven from `secrets.json` in the UC environment directory. The file is gitignored; a `secrets.json.example` template is committed instead. The `secrets` variable is declared `sensitive = true` so values never appear in plan output. A `fileexists()` guard means the layer applies cleanly if the file is absent.
 
 **NAT gateway off by default** — serverless compute (SQL warehouses, serverless jobs) runs in Databricks-managed infrastructure and never touches your VPC. Set `enable_nat_gateway = false` unless you use classic clusters. A NAT gateway costs ~$32/month idle.
 
@@ -158,6 +207,8 @@ terraform -chdir=environments/dev/01-networking destroy
 ## Security
 
 - `terraform.tfvars` and `backend.tfvars` are in `.gitignore` — safe to store `databricks_client_secret` there
+- `secrets.json` is in `.gitignore` — never commit actual secret values; use `secrets.json.example` as the committed template
+- `iam.json` is committed — it contains only email addresses and group names, no credentials
 - The cross-account IAM role follows least-privilege (only the permissions Databricks requires for workspace management)
 - All S3 buckets have public access blocked and AES256 encryption
 - For production hardening: add Private Link endpoints, Customer-Managed KMS keys — see Ch 29 in the companion notes
