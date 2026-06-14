@@ -15,5 +15,6 @@ locals {
   enable_nat_gateway = false
 
   # 02-workspace
-  workspace_name = "" # defaults to prefix
+  workspace_name = ""           # defaults to prefix
+  admin_group    = "dbx-admins" # shared with staging — same members across staging+prod
 }

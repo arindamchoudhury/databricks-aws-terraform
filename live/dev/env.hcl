@@ -16,7 +16,8 @@ locals {
   enable_nat_gateway = false # serverless-only; flip true for classic compute egress
 
   # 02-workspace
-  workspace_name = "" # defaults to prefix
+  workspace_name = ""               # defaults to prefix
+  admin_group    = "dbx-dev-admins" # dev has its own admin group (members can differ from staging/prod)
 
   # workspace_id / workspace_url are NOT set here — they flow from the
   # 02-workspace layer into 03-unity-catalog via a Terragrunt dependency block.

@@ -21,7 +21,7 @@ terraform {
 dependency "account" {
   config_path = "../../account/00-account"
   mock_outputs = {
-    group_ids = { "${local.env.prefix}-admins" = "000000000000000" }
+    group_ids = { (local.env.admin_group) = "000000000000000" }
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
 }
@@ -38,7 +38,7 @@ dependency "networking" {
 
 inputs = {
   workspace_name     = local.env.workspace_name
-  admin_group_id     = dependency.account.outputs.group_ids["${local.env.prefix}-admins"]
+  admin_group_id     = dependency.account.outputs.group_ids[local.env.admin_group]
   vpc_id             = dependency.networking.outputs.vpc_id
   private_subnet_ids = dependency.networking.outputs.private_subnet_ids
   security_group_ids = dependency.networking.outputs.security_group_ids

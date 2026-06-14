@@ -4,6 +4,6 @@
   ],
   "groups": [
     { "name": "dbx-dev-admins", "members": ["arindam@live.com"] },
-    { "name": "dbx-prod-admins", "members": ["arindam@live.com"] }
+    { "name": "dbx-admins", "members": ["arindam@live.com"] }
   ]
 }
