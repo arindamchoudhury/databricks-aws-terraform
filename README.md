@@ -1,161 +1,157 @@
-# Databricks AWS Terraform
+# Databricks AWS Terraform (Terragrunt)
 
-Production-quality Terraform deployment for Databricks on AWS — layered modules, isolated state per layer, S3 native locking (no DynamoDB).
+Layered Terraform for Databricks on AWS, orchestrated with **Terragrunt** — one copy of each module, environments expressed as thin units, cross-layer wiring via `dependency` blocks, S3 native locking (no DynamoDB).
 
 ## Architecture
 
-Four state layers, deployed in order:
+State layers, deployed in order:
 
 ```
-bootstrap  →  01-networking  →  02-workspace  →  03-unity-catalog
-(S3 bucket)   (VPC, subnets)   (IAM, S3, MWS,   (UC metastore, catalog,
-                                users, groups)    schemas, grants, secrets)
+bootstrap  →  account/00-account  →  01-networking  →  02-workspace  →  03-unity-catalog
+(S3 state)    (account users/         (VPC, subnets)    (cross-acct IAM,   (UC metastore,
+              groups, once per                          root S3, MWS        catalog, schemas,
+              Databricks account)                       workspace + admin   grants, secrets)
+                                                        assignment)
 ```
 
-Each layer (except bootstrap) stores its state in the S3 bucket created by bootstrap, using `use_lockfile = true` (Terraform 1.10+). No DynamoDB table required.
+- **bootstrap** is plain Terraform (it creates the state bucket Terragrunt then uses).
+- **account/00-account** is applied **once per Databricks account** — account identities are global, so they don't belong to any single env.
+- **01/02/03** are applied **per environment** (`dev`, `prod`), in dependency order, by `terragrunt run --all`.
+
+Every layer stores state in the bootstrap bucket with `use_lockfile = true` (Terraform 1.10+). The state key is **derived automatically from each unit's path** (`account/00-account`, `dev/02-workspace`, …) by `live/root.hcl` — no per-unit backend config to keep in sync.
+
+### Repository layout
 
 ```
-bootstrap/           — S3 state bucket (run once)
-modules/
-  networking/        — VPC, subnets, optional NAT gateway, security group
-  workspace/         — Cross-account IAM role, root S3 bucket, MWS workspace,
-                       account-level users/groups (from iam.json),
-                       workspace admin group assignment
-  unity-catalog/     — Auto-provisioned metastore lookup, catalog storage credential,
-                       catalog with storage_root, bronze/silver/gold schemas and grants,
-                       secret scopes and secrets (from secrets.json)
-environments/
+bootstrap/                  — S3 state bucket (run once, plain Terraform)
+modules/                    — reusable building blocks (one copy each)
+  networking/               — VPC, subnets, optional NAT gateway, security group
+  account-iam/              — account users (referenced) + groups (owned) + membership
+  workspace/                — cross-account IAM role, root S3 bucket, MWS workspace,
+                              workspace-scoped admin permission assignment
+  unity-catalog/            — metastore lookup, storage credential + external location,
+                              catalog with storage_root, bronze/silver/gold schemas + grants,
+                              secret scopes/secrets (from secrets.json)
+live/                       — Terragrunt orchestration
+  root.hcl                  — S3 backend (path-derived key) + aws provider + common inputs
+  _common/
+    databricks-mws.hcl      — account (mws) provider + its credential variables
+    databricks-workspace.hcl— workspace provider (Unity Catalog only)
+  secrets.hcl.example       — template; copy to live/<scope>/secrets.hcl (gitignored)
+  account/
+    env.hcl                 — region, account id, state bucket (committed)
+    secrets.hcl             — service-principal client_id/secret (gitignored)
+    00-account/
+      iam.json              — account users + groups (committed; no secrets)
+      terragrunt.hcl
   dev/
-    01-networking/
-    02-workspace/
-      iam.json       — users and groups (committed; no secrets)
+    env.hcl                 — region, prefix, CIDRs, account id (committed)
+    secrets.hcl             — service-principal client_id/secret (gitignored)
+    01-networking/terragrunt.hcl
+    02-workspace/terragrunt.hcl
     03-unity-catalog/
-      secrets.json          — secret values (gitignored — never commit)
-      secrets.json.example  — template showing the expected structure
-  prod/              — Same structure; prod CIDRs and workspace name differ
+      terragrunt.hcl
+      secrets.json          — UC secret values (gitignored, optional)
+  prod/                     — same shape; prod region/prefix/CIDRs differ
 ```
+
+There is **no duplicated HCL** between environments: the `.tf` lives once in `modules/`, and each env differs only in its `env.hcl` values, its gitignored `secrets.hcl`, and a ~20-line `terragrunt.hcl` per layer.
 
 ## Prerequisites
 
 | Requirement | Notes |
 |---|---|
 | Terraform >= 1.15 | [install](https://developer.hashicorp.com/terraform/install) |
-| AWS CLI | `aws configure` — needs IAM permissions for VPC, IAM, S3 |
+| Terragrunt >= 1.0 | [install](https://terragrunt.gruntwork.io/docs/getting-started/install/) — note the v1.0 `run --all` CLI |
+| AWS CLI (authenticated) | needs IAM permissions for VPC, IAM, S3 |
 | Databricks account on AWS | `accounts.cloud.databricks.com` |
-| Databricks service principal | See below |
+| Databricks service principal | Account Admin; see below |
 
 **Service principal setup:**
 
 1. Account console → **Settings → Identity and access → Service Principals → Add service principal**
-2. Name it `terraform-deployer`; enable **Admin access** (workspace entitlement)
-3. Account console → **User management → Service principals** → click `terraform-deployer` → **Roles** → assign **Account Admin**
-4. Click **Secrets** → **Generate secret** — note the **Application Id** (`client_id`) and secret value (`client_secret`)
+2. Account console → **User management → Service principals** → select it → **Roles** → assign **Account Admin**
+3. **Secrets → Generate secret** — note the **Application Id** (`client_id`) and the secret value (`client_secret`)
 
 ## Versions
 
 | Component | Version |
 |---|---|
 | Terraform | `~> 1.15` |
+| Terragrunt | `>= 1.0` |
 | Databricks provider | `~> 1.117` |
 | AWS provider | `>= 5.76, < 7.0` |
 | VPC module | `~> 5.7` |
-| Random provider | `~> 3.6` |
-| Time provider | `~> 0.9` |
 
 ## Deployment
 
-### 1. Bootstrap
+### 1. Bootstrap (once, plain Terraform)
 
 ```powershell
 cd bootstrap
-cp terraform.tfvars.example terraform.tfvars
-# Edit: set region and prefix (bucket name is auto-generated as <prefix>-databricks-tf-state-<random8hex>)
-
+cp terraform.tfvars.example terraform.tfvars   # set region and prefix
 terraform init
-terraform validate
-terraform plan
 terraform apply
+terraform output state_bucket_name             # note this
 ```
 
-Note the output `state_bucket_name` — you will need it in the next steps.
+### 2. Configure `live/`
 
-### 2. Networking
+For each scope you will deploy (`account`, `dev`, …):
+
+- Set `state_bucket` and `databricks_account_id` in its `env.hcl` (committed, non-secret).
+- Create its `secrets.hcl` from the template (gitignored):
 
 ```powershell
-cd environments/dev/01-networking
-cp backend.tfvars.example backend.tfvars   # set bucket = <state_bucket_name from step 1>
-cp terraform.tfvars.example terraform.tfvars
-
-terraform init -backend-config="backend.tfvars"   # quotes required on PowerShell
-terraform validate
-terraform plan
-terraform apply
+cp live/secrets.hcl.example live/account/secrets.hcl   # fill in client_id / client_secret
+cp live/secrets.hcl.example live/dev/secrets.hcl
 ```
 
-### 3. Workspace
+Credentials can also be supplied another way if you prefer — `secrets.hcl` is just the committed-safe default. AWS credentials come from your normal AWS CLI session.
 
-Edit `environments/dev/02-workspace/iam.json` with your Databricks account email before applying:
+### 3. Account IAM (once per Databricks account)
+
+Edit `live/account/00-account/iam.json` (note: group names must **not** be the reserved `admins`/`users` — use e.g. `dbx-dev-admins`):
 
 ```json
 {
-  "users": [
-    { "user_name": "your.email@example.com", "display_name": "Your Name" }
-  ],
-  "groups": [
-    { "name": "admins", "members": ["your.email@example.com"] }
-  ]
+  "users":  [ { "user_name": "you@example.com", "display_name": "You" } ],
+  "groups": [ { "name": "dbx-dev-admins", "members": ["you@example.com"] } ]
 }
 ```
 
 ```powershell
-cd environments/dev/02-workspace
-cp backend.tfvars.example backend.tfvars
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: databricks_account_id, databricks_client_id, databricks_client_secret, state_bucket
-
-terraform init -backend-config="backend.tfvars"
-terraform validate
-terraform plan
-terraform apply
-
-terraform output workspace_url   # note for step 4
-terraform output workspace_id    # note for step 4
+cd live/account
+terragrunt run --all apply
 ```
 
-This creates the workspace and assigns the `admins` group as workspace ADMIN. Open the workspace URL — you should be able to log in immediately.
-
-### 4. Unity Catalog
-
-Optionally create `environments/dev/03-unity-catalog/secrets.json` before applying (this file is gitignored):
-
-```json
-{
-  "scopes": [
-    {
-      "name": "dev",
-      "secrets": [
-        { "key": "my-api-key", "value": "actual-value-here" }
-      ]
-    }
-  ]
-}
-```
-
-If the file is absent or `"secrets": []`, the scope is created empty — add secrets later with another `terraform apply`.
+### 4. An environment (networking → workspace → unity-catalog)
 
 ```powershell
-cd environments/dev/03-unity-catalog
-cp backend.tfvars.example backend.tfvars
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: credentials, workspace_url, workspace_id, admin_user
-
-terraform init -backend-config="backend.tfvars"
-terraform validate
-terraform plan
-terraform apply
+cd live/dev
+terragrunt run --all plan     # preview (downstream units show mock outputs until applied)
+terragrunt run --all apply    # applies the three layers in dependency order
 ```
 
-Verify in the Databricks workspace:
+`run --all` reads the account layer's outputs (it's an external dependency), so **apply `live/account` before any env**. The workspace's `workspace_id`/`workspace_url` flow into Unity Catalog automatically via a `dependency` block — nothing to copy by hand.
+
+Run a single layer instead with `cd live/dev/02-workspace; terragrunt apply`.
+
+### Unity Catalog secrets (optional)
+
+Create `live/dev/03-unity-catalog/secrets.json` (gitignored) before applying that layer:
+
+```json
+{ "scopes": [ { "name": "dev", "secrets": [ { "key": "my-api-key", "value": "…" } ] } ] }
+```
+
+If absent, scopes/secrets are simply not created (`fileexists()` guard). Read one in a notebook:
+
+```python
+api_key = dbutils.secrets.get(scope="dev", key="my-api-key")
+```
+
+### Verify
 
 ```sql
 SHOW CATALOGS;             -- includes "main"
@@ -163,52 +159,50 @@ SHOW SCHEMAS IN main;      -- bronze, silver, gold
 SHOW GRANTS ON CATALOG main;
 ```
 
-Access a secret in a notebook:
-
-```python
-api_key = dbutils.secrets.get(scope="dev", key="my-api-key")
-```
-
-## Destroy (reverse order)
+## Destroy
 
 ```powershell
-# 03-unity-catalog first, then 02-workspace, then 01-networking
-terraform -chdir=environments/dev/03-unity-catalog destroy
-terraform -chdir=environments/dev/02-workspace destroy
-terraform -chdir=environments/dev/01-networking destroy
+# An environment (reverse dependency order is handled by run --all)
+cd live/dev
+terragrunt run --all destroy
 
-# Only destroy bootstrap if you want to delete the state bucket itself
-# (requires changing force_destroy = true in bootstrap/main.tf first)
+# Account IAM — only if you really mean to remove account-global groups
+cd live/account
+terragrunt run --all destroy
 ```
+
+Destroying an environment removes its workspace, networking, and Unity Catalog — but **not** account users/groups (those live in the account layer; users are referenced, never deleted). Destroy `bootstrap` last, and only to delete the state bucket itself (set `force_destroy = true` first).
 
 ## Key design decisions
 
-**S3 native locking** — `use_lockfile = true` in each backend block. Terraform writes a `.tflock` object to S3 before any write. Eliminates the need for a DynamoDB table.
+**Terragrunt, DRY units** — modules exist once; each env is value-only (`env.hcl` + `secrets.hcl` + thin `terragrunt.hcl`). Adding `staging` is a folder of small files, not a copied module.
 
-**Random bucket suffix** — bootstrap uses `random_id` (4 bytes = 8 hex chars) so the bucket name is globally unique without manual naming.
+**Path-derived state keys** — `live/root.hcl` sets the S3 key from `path_relative_to_include()` (normalized for Windows backslashes), so keys can't drift or collide.
 
-**IAM from JSON** — users, groups, and group membership are declared in `iam.json` (committed to git — no secrets). `databricks_mws_permission_assignment` assigns the `admins` group as workspace ADMIN, not an individual user. Adding a new admin is a JSON edit; no HCL change required.
+**Generated providers** — modules are run as Terragrunt root units, so they declare no provider blocks. `root.hcl` generates the `aws` provider; `_common/databricks-mws.hcl` and `_common/databricks-workspace.hcl` generate the two Databricks providers (account + workspace) and their credential variables, included only by the layers that need them. (This is why the modules dropped `configuration_aliases`.)
 
-**Auto-provisioned metastore** — Databricks accounts created after Nov 2023 get one metastore per region automatically. The UC module looks it up via `data "databricks_metastores"` and assigns it to the workspace — it does not create one.
+**Account IAM at account scope** — account users/groups are global to the Databricks account, so they live in one `account/00-account` layer, not in each env. **Users are referenced** (`data "databricks_user"`) — never created or deleted by Terraform; they must pre-exist (console/SCIM). **Groups are owned** resources (`force = true` to adopt an existing same-named group). The workspace layer no longer manages IAM: it consumes `admin_group_id` from `dependency.account.outputs.group_ids[...]` and only creates the workspace-scoped `databricks_mws_permission_assignment`. So a workspace destroy never touches account identities.
 
-**Catalog-level storage** — the auto-provisioned metastore uses Databricks-managed S3 storage you cannot reference as `storage_root`. Instead, the module creates its own S3 bucket and wires it to the catalog via a `databricks_storage_credential` and `databricks_external_location`.
+**S3 native locking** — `use_lockfile = true`; Terraform writes a `.tflock` object before each write. No DynamoDB table.
 
-**Credential-before-role pattern** — `databricks_storage_credential` is created with a hardcoded role ARN string (not a Terraform resource reference). This breaks the circular dependency: the storage credential needs the IAM role ARN; the IAM role's trust policy needs the `external_id` from the storage credential. The `databricks_aws_unity_catalog_assume_role_policy` data source reads the real `external_id` after credential creation and generates the correct trust policy (including the required self-assume statement) for the IAM role — all in a single `apply` pass.
+**Auto-provisioned metastore** — accounts created after Nov 2023 get one metastore per region. The UC module looks it up via `data "databricks_metastores"` and assigns it to the workspace — it does not create one.
 
-**Secrets from JSON (gitignored)** — `databricks_secret_scope` and `databricks_secret` are driven from `secrets.json` in the UC environment directory. The file is gitignored; a `secrets.json.example` template is committed instead. The `secrets` variable is declared `sensitive = true` so values never appear in plan output. A `fileexists()` guard means the layer applies cleanly if the file is absent.
+**Catalog-level storage** — the auto-provisioned metastore's Databricks-managed storage can't be used as `storage_root`, so the UC module creates its own S3 bucket and wires it via `databricks_storage_credential` + `databricks_external_location`.
 
-**NAT gateway off by default** — serverless compute (SQL warehouses, serverless jobs) runs in Databricks-managed infrastructure and never touches your VPC. Set `enable_nat_gateway = false` unless you use classic clusters. A NAT gateway costs ~$32/month idle.
+**Credential-before-role pattern** — the storage credential is created with a hardcoded role ARN string (not a resource reference), breaking the circular dependency: the credential needs the role ARN; the role's trust policy needs the credential's `external_id`. `databricks_aws_unity_catalog_assume_role_policy` reads the real `external_id` afterward and builds the correct trust policy in one `apply`.
 
-**`time_sleep` resources** — three propagation delays are baked in:
-- 20s after workspace cross-account IAM attachment (before `databricks_mws_credentials` validates the role)
-- 30s after catalog IAM role trust policy update (before `databricks_external_location` validates the role)
-- 15s after schema creation (before grants; Databricks' permissions API needs time to register new schemas)
+**Secrets handling** — Databricks SP creds live in gitignored `secrets.hcl` (template committed). UC secret values live in gitignored `secrets.json`. The UC `secrets` variable is **not** marked whole-object `sensitive` (that would break `for_each` over scope names); only each secret's `value` is wrapped with `sensitive()` at the point it's written.
+
+**NAT gateway off by default** — serverless compute runs in Databricks-managed infrastructure and never touches your VPC. Keep `enable_nat_gateway = false` unless you run classic clusters (a NAT gateway is ~$32/month idle). For serverless-only you can drop networking entirely and use a Databricks-managed VPC.
+
+**`time_sleep` propagation delays** — 20s after the workspace cross-account IAM attachment, 30s after the catalog role trust-policy update, 15s after schema creation (before grants).
 
 ## Security
 
-- `terraform.tfvars` and `backend.tfvars` are in `.gitignore` — safe to store `databricks_client_secret` there
-- `secrets.json` is in `.gitignore` — never commit actual secret values; use `secrets.json.example` as the committed template
-- `iam.json` is committed — it contains only email addresses and group names, no credentials
-- The cross-account IAM role follows least-privilege (only the permissions Databricks requires for workspace management)
-- All S3 buckets have public access blocked and AES256 encryption
-- For production hardening: add Private Link endpoints, Customer-Managed KMS keys — see Ch 29 in the companion notes
+- `secrets.hcl` and `secrets.json` are gitignored — never commit credentials or secret values; commit the `*.example` templates instead.
+- `env.hcl` and `iam.json` are committed — they hold non-secret config (region, CIDRs, emails, group names).
+- AWS credentials come from your AWS CLI session, not from any committed file.
+- All S3 buckets block public access and use AES256 encryption; the cross-account IAM role is least-privilege.
+- For production hardening: PrivateLink endpoints and customer-managed KMS keys — see Ch 29 in the companion notes.
+```
+
