@@ -34,7 +34,7 @@ dependency "workspace" {
 
 inputs = {
   admin_user    = local.env.admin_user
-  catalog_name  = "main"
+  catalog_name  = "prod" # distinct from dev's "main" — catalog names are unique per (shared) metastore
   workspace_id  = dependency.workspace.outputs.workspace_id
   workspace_url = dependency.workspace.outputs.workspace_url
   secrets       = fileexists("${get_terragrunt_dir()}/secrets.json") ? jsondecode(file("${get_terragrunt_dir()}/secrets.json")) : { scopes = [] }
