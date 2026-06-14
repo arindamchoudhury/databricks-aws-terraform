@@ -1,0 +1,9 @@
+{
+  "users": [
+    { "user_name": "arindam@live.com", "display_name": "Arindam" }
+  ],
+  "groups": [
+    { "name": "dbx-dev-admins", "members": ["arindam@live.com"] },
+    { "name": "dbx-prod-admins", "members": ["arindam@live.com"] }
+  ]
+}

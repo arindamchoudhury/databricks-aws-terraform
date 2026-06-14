@@ -35,6 +35,6 @@ resource "databricks_mws_workspaces" "this" {
 resource "databricks_mws_permission_assignment" "admin" {
   provider     = databricks.mws
   workspace_id = databricks_mws_workspaces.this.workspace_id
-  principal_id = databricks_group.this[var.workspace_admin_group].id
+  principal_id = var.admin_group_id
   permissions  = ["ADMIN"]
 }

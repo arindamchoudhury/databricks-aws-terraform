@@ -19,7 +19,7 @@
       "Bash(terragrunt render:*)",
       "Bash(terragrunt output:*)",
       "Bash(terragrunt init:*)",
-      "Bash(terragrunt run-all plan:*)",
+      "Bash(terragrunt run --all plan:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -38,8 +38,8 @@
       "Bash(terraform workspace:*)",
       "Bash(terragrunt apply:*)",
       "Bash(terragrunt destroy:*)",
-      "Bash(terragrunt run-all apply:*)",
-      "Bash(terragrunt run-all destroy:*)"
+      "Bash(terragrunt run --all apply:*)",
+      "Bash(terragrunt run --all destroy:*)"
     ]
   }
 }

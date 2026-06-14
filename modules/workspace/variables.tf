@@ -33,16 +33,7 @@ variable "workspace_name" {
   default     = ""
 }
 
-variable "iam" {
-  type = object({
-    users = list(object({ user_name = string, display_name = string }))
-    groups = list(object({ name = string, members = list(string) }))
-  })
-  description = "Users and groups to create at account level (from iam.json)"
-}
-
-variable "workspace_admin_group" {
+variable "admin_group_id" {
   type        = string
-  default     = "admins"
-  description = "Name of the group to assign ADMIN on the workspace"
+  description = "ID of the account group to assign ADMIN on this workspace (from the 00-account layer)"
 }

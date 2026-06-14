@@ -1,8 +1,0 @@
-{
-  "users": [
-    { "user_name": "arindam@live.com", "display_name": "Arindam" }
-  ],
-  "groups": [
-    { "name": "admins", "members": ["arindam@live.com"] }
-  ]
-}
