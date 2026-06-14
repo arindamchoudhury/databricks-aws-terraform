@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(terraform validate:*)",
+      "Bash(terraform plan:*)",
+      "Bash(terraform fmt:*)",
+      "Bash(terraform show:*)",
+      "Bash(terraform output:*)",
+      "Bash(terraform state list:*)",
+      "Bash(terraform state show:*)",
+      "Bash(terraform providers:*)",
+      "Bash(terraform version:*)",
+      "Bash(terraform graph:*)",
+      "Bash(terraform init:*)",
+      "Bash(terragrunt plan:*)",
+      "Bash(terragrunt validate:*)",
+      "Bash(terragrunt hcl:*)",
+      "Bash(terragrunt render:*)",
+      "Bash(terragrunt output:*)",
+      "Bash(terragrunt init:*)",
+      "Bash(terragrunt run-all plan:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git fetch:*)",
+      "Bash(git stash list:*)"
+    ],
+    "ask": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(terraform import:*)",
+      "Bash(terraform state rm:*)",
+      "Bash(terraform state mv:*)",
+      "Bash(terraform workspace:*)",
+      "Bash(terragrunt apply:*)",
+      "Bash(terragrunt destroy:*)",
+      "Bash(terragrunt run-all apply:*)",
+      "Bash(terragrunt run-all destroy:*)"
+    ]
+  }
+}
