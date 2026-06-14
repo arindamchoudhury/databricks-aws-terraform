@@ -1,9 +1,0 @@
-region                   = "us-east-1"
-prefix                   = "dbx-dev"
-databricks_account_id    = ""   # from: accounts.cloud.databricks.com top-right menu
-databricks_client_id     = ""   # service principal Application Id
-databricks_client_secret = ""   # service principal secret (terraform.tfvars is gitignored — safe to store here)
-workspace_id             = ""   # from: terraform -chdir=../02-workspace output -raw workspace_id
-workspace_url            = ""   # from: terraform -chdir=../02-workspace output -raw workspace_url
-admin_user               = ""   # your Databricks account email
-catalog_name             = "main"

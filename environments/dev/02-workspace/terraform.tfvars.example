@@ -1,7 +1,0 @@
-region                   = "us-east-1"
-prefix                   = "dbx-dev"
-state_bucket             = ""   # from: terraform -chdir=../../../bootstrap output -raw state_bucket_name
-databricks_account_id    = ""   # from: accounts.cloud.databricks.com top-right menu
-databricks_client_id     = ""   # service principal Application Id
-databricks_client_secret = ""   # service principal secret (terraform.tfvars is gitignored — safe to store here)
-workspace_name           = "dev"
