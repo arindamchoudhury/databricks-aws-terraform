@@ -15,5 +15,5 @@ resource "databricks_secret" "this" {
   provider     = databricks.workspace
   scope        = databricks_secret_scope.this[each.value.scope].name
   key          = each.value.key
-  string_value = each.value.value
+  string_value = sensitive(each.value.value)
 }

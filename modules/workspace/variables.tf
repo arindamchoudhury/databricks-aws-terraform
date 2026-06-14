@@ -8,10 +8,9 @@ variable "region" {
   description = "AWS region"
 }
 
-variable "databricks_account_id" {
-  type        = string
-  description = "Databricks account UUID (from accounts.cloud.databricks.com)"
-}
+# NOTE: databricks_account_id is declared by Terragrunt (live/_common/databricks-mws.hcl)
+# so the mws provider and this module's resources share one declaration. Do not
+# re-declare it here or Terraform will error on a duplicate variable.
 
 variable "vpc_id" {
   type        = string

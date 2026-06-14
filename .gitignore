@@ -1,5 +1,7 @@
 # Terraform
 .terraform/
+.terragrunt-cache/
+*.rendered.json
 *.tfstate
 *.tfstate.*
 *.tfplan
@@ -17,6 +19,7 @@ terraform.tfvars
 *.auto.tfvars
 backend.tfvars
 secrets.json
+secrets.hcl
 
 # Temp / scratch
 temp

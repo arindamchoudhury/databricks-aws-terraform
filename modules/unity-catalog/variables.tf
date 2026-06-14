@@ -30,9 +30,12 @@ variable "catalog_name" {
   default     = "main"
 }
 
+# NOTE: the variable is intentionally NOT marked `sensitive` as a whole — scope
+# names and keys are identifiers used as for_each keys (which cannot be sensitive).
+# Only each secret's `value` is sensitive; that is wrapped with sensitive() in
+# secrets.tf at the point it is written to databricks_secret.string_value.
 variable "secrets" {
   description = "Secret scopes and secrets to create in the workspace (from secrets.json)"
-  sensitive   = true
   type = object({
     scopes = list(object({
       name    = string
